@@ -90,6 +90,39 @@ class LFUCache : public Cache {
     }
 };
 
+class FIFOCache : public Cache {
+    private:
+    unordered_map<string, pair<string, list<string>::iterator>> cacheMap;
+    list<string> accessOrder;
+    size_t capacity;
+    public:
+    FIFOCache(size_t cap) : Cache(cap), capacity(cap) {}
+    string get(const string& key) {
+        if (cacheMap.find(key) != cacheMap.end()) {
+            accessOrder.erase(cacheMap[key].second);
+            cacheMap[key].second = accessOrder.begin();
+            return cacheMap[key].first;
+        }
+        return "";
+    }
+    void put(const string& key, const string& value) {
+        if (cacheMap.find(key) != cacheMap.end()) {
+            accessOrder.erase(cacheMap[key].second);
+            cacheMap[key].second = accessOrder.begin();
+            cacheMap[key].first = value;
+        }
+        accessOrder.push_front(key);
+        cacheMap[key] = {value, accessOrder.begin()};
+    }
+    void display() {
+        cout << "Cache contents:\n";
+        for (const auto& key : accessOrder) {
+            cout << key << " -> " << cacheMap[key].first << "\n";
+        }
+        cout << endl;
+    }
+};
+
 string searchCSV(const string& fileName, const string& countryCode, const string& cityName) {
     ifstream file(fileName);
     if (!file.is_open()) {
@@ -116,7 +149,7 @@ string searchCSV(const string& fileName, const string& countryCode, const string
 
 int main() {
     const string fileName = "world_cities.csv";
-    int cap = 10;
+    int cap = 2;
     string countryCode, cityName;
 
     cout << "Choose caching strategy (1: LFU, 2: FIFO, 3: Random): ";
@@ -126,6 +159,9 @@ int main() {
     switch (choice) {
         case 1:
             cache = LFUCache(cap);
+            break;
+        case 2:
+            cache = FIFOCache(cap);
             break;
         default:
             cerr << "Wrong Choice\n";
