@@ -3,6 +3,8 @@
 #include <sstream>
 #include <unordered_map>
 #include <list>
+#include <random>
+#include <string>
 
 using namespace std;
 
@@ -123,6 +125,51 @@ class FIFOCache : public Cache {
     }
 };
 
+class RandomCache : public Cache {
+    private:
+    unordered_map<string, pair<string, list<string>::iterator>> cacheMap;
+    list<string> accessOrder;
+    size_t capacity;
+    mt19937 rng; // Mersenne Twister random number generator
+    void evictRandomItem() {
+        if (cacheMap.empty()) return;
+        uniform_int_distribution<size_t> dist(0, cacheMap.size() - 1);
+
+        auto it = cacheMap.begin();
+        advance(it, dist(rng));
+
+        accessOrder.erase(it->second.second);
+        cacheMap.erase(it);
+    }
+    public:
+    RandomCache(size_t cap) : Cache(cap), capacity(cap), rng(random_device{}()) {}
+    string get(const string& key) {
+        if (cacheMap.find(key) != cacheMap.end()) {
+            accessOrder.erase(cacheMap[key].second);
+            accessOrder.push_front(key);
+            cacheMap[key].second = accessOrder.begin();
+            return cacheMap[key].first;
+        }
+        return "";
+    }
+    void put(const string& key, const string& value) {
+        if (cacheMap.find(key) != cacheMap.end()) {
+            accessOrder.erase(cacheMap[key].second);
+        } else if (cacheMap.size() >= capacity) {
+            evictRandomItem();
+        }
+        accessOrder.push_front(key);
+        cacheMap[key] = {value, accessOrder.begin()};
+    }
+    void display() {
+        cout << "Cache contents:\n";
+        for (const auto& key : accessOrder) {
+            cout << key << " -> " << cacheMap[key].first << "\n";
+        }
+        cout << endl;
+    }
+};
+
 string searchCSV(const string& fileName, const string& countryCode, const string& cityName) {
     ifstream file(fileName);
     if (!file.is_open()) {
@@ -149,7 +196,7 @@ string searchCSV(const string& fileName, const string& countryCode, const string
 
 int main() {
     const string fileName = "world_cities.csv";
-    int cap = 2;
+    int cap = 4;
     string countryCode, cityName;
 
     cout << "Choose caching strategy (1: LFU, 2: FIFO, 3: Random): ";
@@ -162,6 +209,9 @@ int main() {
             break;
         case 2:
             cache = FIFOCache(cap);
+            break;
+        case 3:
+            cache = RandomCache(cap);
             break;
         default:
             cerr << "Wrong Choice\n";
