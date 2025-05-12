@@ -207,3 +207,23 @@ class RandomCache : public Cache {
         cout << endl;
     }
 };
+
+void loadCities(const string& fileName, Trie& trie) {
+    ifstream file(fileName);
+    if (!file.is_open()) {
+        cerr << "Unable to open file " << fileName << "\n";
+        return;
+    }
+    string line;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string cityName, countryCode, populationStr;
+
+        getline(ss, countryCode, ',');
+        getline(ss, cityName, ',');
+        getline(ss, populationStr, ',');
+
+        int population = stoi(populationStr);
+        trie.insert(cityName, countryCode, population);
+    }
+}
