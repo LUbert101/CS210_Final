@@ -28,7 +28,7 @@ class Trie {
             node = node->children[c];
         }
         node->isEnd = true;
-        node->cityData[cityName] = population;
+        node->cityData[countryCode] = population;
     }
 
     int search(const string& cityName, const string& countryCode) {
