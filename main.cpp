@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 #include <list>
 #include <random>
@@ -215,7 +216,9 @@ void loadCities(const string& fileName, Trie& trie) {
         return;
     }
     string line;
+    int lineNumber = 0;
     while (getline(file, line)) {
+        lineNumber++;
         stringstream ss(line);
         string countryCode, cityName, populationStr;
 
@@ -227,7 +230,74 @@ void loadCities(const string& fileName, Trie& trie) {
         getline(ss, cityName, ',');
         getline(ss, populationStr, ',');
 
-        int population = stoi(populationStr);
-        trie.insert(cityName, countryCode, population);
+        if (countryCode.empty() || cityName.empty() || populationStr.empty()) {
+            cerr << "Invalid format at line " << lineNumber << ": " << line << "\n";
+            continue;
+        }
+
+        try {
+            int population = stoi(populationStr);
+            trie.insert(cityName, countryCode, population);
+        } catch (const invalid_argument& e) {
+            cerr << "Invalid population data in line: " << line << endl;
+        }
     }
+    file.close();
+}
+
+int main() {
+    const string fileName = "world_cities.csv";
+    Trie cityTrie;
+    loadCities(fileName, cityTrie);
+
+    int cap = 10;
+    cout << "Choose caching strategy (1: LFU, 2: FIFO, 3: Random): ";
+    int choice;
+    cin >> choice;
+
+    Cache* cache;
+    switch (choice) {
+        case 1:
+            cache = new LFUCache(cap);
+            break;
+        case 2:
+            cache = new FIFOCache(cap);
+            break;
+        case 3:
+            cache = new RandomCache(cap);
+            break;
+        default:
+            cerr << "Invalid choice\n";
+        return 1;
+    }
+
+    while (true) {
+        cout << "Enter country code (or 'exit' to quit): ";
+        string countryCode;
+        cin >> countryCode;
+        if (countryCode == "exit") break;
+
+        cout << "Enter city name: ";
+        string cityName;
+        cin.ignore();
+        getline(cin, cityName);
+
+        string key = countryCode + "," + cityName;
+        string cachedResult = cache->get(key);
+
+        if (!cachedResult.empty()) {
+            cout << "Population (from cache): " << cachedResult << endl;
+        } else {
+            int population = cityTrie.search(cityName, countryCode);
+            if (population != -1) {
+                cache->put(key, to_string(population));
+                cout << "Population: " << population << endl;
+            } else {
+                cout << "City not found." << endl;
+            }
+        }
+
+        cache->display();
+    }
+    return 0;
 }
