@@ -217,7 +217,11 @@ void loadCities(const string& fileName, Trie& trie) {
     string line;
     while (getline(file, line)) {
         stringstream ss(line);
-        string cityName, countryCode, populationStr;
+        string countryCode, cityName, populationStr;
+
+        if (lineNumber == 1 && line.find("country code,city name,population") != string::npos) {
+            continue;
+        }
 
         getline(ss, countryCode, ',');
         getline(ss, cityName, ',');
