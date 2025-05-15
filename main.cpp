@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -7,6 +8,7 @@
 #include <string>
 
 using namespace std;
+using namespace chrono;
 
 struct TrieNode {
     unordered_map<char, TrieNode*> children;
@@ -245,59 +247,74 @@ void loadCities(const string& fileName, Trie& trie) {
     file.close();
 }
 
-int main() {
-    const string fileName = "world_cities.csv";
-    Trie cityTrie;
-    loadCities(fileName, cityTrie);
+vector<pair<string, string>> generateQueries(const vector<pair<string, string>>& cityData, int numQueries) {
+    vector<pair<string, string>> queries;
+    mt19937 rng(random_device{}());
+    uniform_int_distribution<int> dist(0, cityData.size() - 1);
 
-    int cap = 10;
-    cout << "Choose caching strategy (1: LFU, 2: FIFO, 3: Random): ";
-    int choice;
-    cin >> choice;
-
-    Cache* cache;
-    switch (choice) {
-        case 1:
-            cache = new LFUCache(cap);
-            break;
-        case 2:
-            cache = new FIFOCache(cap);
-            break;
-        case 3:
-            cache = new RandomCache(cap);
-            break;
-        default:
-            cerr << "Invalid choice\n";
-        return 1;
+    for (int i = 0; i < numQueries; ++i) {
+        int index = dist(rng);
+        queries.push_back(cityData[index]);
     }
+    return queries;
+}
 
-    while (true) {
-        cout << "Enter country code (or 'exit' to quit): ";
-        string countryCode;
-        cin >> countryCode;
-        if (countryCode == "exit") break;
+void logResults(const string& strategy, const vector<double>& times, int hits, int misses, const string& filename) {
+    ofstream file(filename, ios::app);
 
-        cout << "Enter city name: ";
-        string cityName;
-        cin.ignore();
-        getline(cin, cityName);
+    if (!file.is_open()) {
+        cerr << "Unable to open file " << filename << "\n";
+        return;
+    }
+    double totalTime = 0;
+    for (double time : times) {
+        totalTime += time;
+    }
+    double avgTime = totalTime / times.size();
 
-        string key = countryCode + "," + cityName;
-        string cachedResult = cache->get(key);
+    file << strategy << "," << totalTime << "," << avgTime << "," << hits << "," << misses << "\n";
+    file.close();
+}
 
-        if (!cachedResult.empty()) {
-            cout << "Population (from cache): " << cachedResult << endl;
+void testCache(Cache& cache, const vector<pair<string, string>>& queries, const string& strategy, const string& filename) {
+    vector<double> times;
+    int hits = 0, misses = 0;
+
+    for (const auto& query : queries) {
+        auto start = high_resolution_clock::now();
+        string result = cache.get(query.first);
+
+        if (!result.empty()) {
+            ++hits;
         } else {
-            int population = cityTrie.search(cityName, countryCode);
-            if (population != -1) {
-                cache->put(key, to_string(population));
-                cout << "Population: " << population << endl;
-            } else {
-                cout << "City not found." << endl;
-            }
+            ++misses;
+            cache.put(query.first, "MockPopulation");
         }
-
-        cache->display();
+        auto end = high_resolution_clock::now();
+        times.push_back(duration<double, micro>(end - start).count());
     }
+    logResults(strategy, times, hits, misses, filename);
+}
+
+int main() {
+    vector<pair<string, string>> cityData = {{"New York", "us"}, {"Los Angeles", "us"}, {"Bangkok", "th"}, {"Tokyo", "jp"}};
+    vector<pair<string, string>> queries = generateQueries(cityData, 100);
+    int cap = 100;
+
+    const string outputFile = "cache_results.csv";
+    ofstream outFile(outputFile, ios::trunc);
+    outFile << "Strategy,Total Time (us),Average Time (us),Cache Hits,Cache Misses\n";
+    outFile.close();
+
+    LFUCache lfuCache(cap);
+    testCache(lfuCache, queries, "LFU", outputFile);
+
+    FIFOCache fifoCache(cap);
+    testCache(fifoCache, queries, "FIFO", outputFile);
+
+    RandomCache randomCache(cap);
+    testCache(randomCache, queries, "Random", outputFile);
+
+    cout << "Testing completed. Results saved to " << outputFile << "\n";
     return 0;
 }
